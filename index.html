@@ -232,13 +232,15 @@ input:focus,select:focus{border-color:#888}
       <div class="frow"><label>Username</label><input type="text" id="nu-user" placeholder="e.g. ahmed.khan"/></div>
       <div class="frow"><label>Password</label><input type="password" id="nu-pass" placeholder="Min 6 characters"/></div>
       <div class="frow"><label>Role</label>
-        <select id="nu-role">
+        <select id="nu-role" onchange="toggleBrandField()">
           <option value="sales">Sales</option>
           <option value="marketing">Marketing</option>
           <option value="finance">Finance</option>
+          <option value="brand_poc">Brand POC</option>
           <option value="admin">Admin</option>
         </select>
       </div>
+      <div class="frow" id="nu-brand-field" style="display:none"><label>Brand name</label><input type="text" id="nu-brand" placeholder="e.g. Pepsi"/></div>
       <div class="error-banner" id="nu-error"></div>
       <div style="display:flex;gap:8px;margin-top:4px">
         <button class="btn-cancel-modal" onclick="closeAddUser()">Cancel</button>
@@ -251,12 +253,12 @@ input:focus,select:focus{border-color:#888}
 <!-- Lock Modal -->
 <div class="modal-overlay" id="lock-overlay">
 <div class="modal">
-  <h3>Lock an asset</h3>
+  <h3 id="m-modal-title">Lock an asset</h3>
   <div class="error-banner" id="form-error"></div>
   <div class="frow"><label>Asset</label><select id="m-asset" onchange="calcPreview()"></select></div>
-  <div class="frow"><label>Brand</label><input type="text" id="m-brand" list="brand-dl" placeholder="Type or select brand" oninput="calcPreview()"/><datalist id="brand-dl"></datalist></div>
+  <div id="brand-fields"><div class="frow"><label>Brand</label><input type="text" id="m-brand" list="brand-dl" placeholder="Type or select brand" oninput="calcPreview()"/><datalist id="brand-dl"></datalist></div>
   <div class="frow"><label>Brand type</label>
-    <select id="m-btype"><option value="">— optional —</option><option>FMCG</option><option>Retail</option><option>Fashion</option><option>Electronics</option><option>Food & Beverage</option><option>Healthcare</option><option>Other</option></select></div>
+    <select id="m-btype"><option value="">— optional —</option><option>FMCG</option><option>Retail</option><option>Fashion</option><option>Electronics</option><option>Food & Beverage</option><option>Healthcare</option><option>Other</option></select></div></div>
   <div class="frow-half">
     <div><label>Start date</label><input type="date" id="m-start" onchange="calcPreview()"/></div>
     <div><label>End date</label><input type="date" id="m-end" onchange="calcPreview()"/></div>
@@ -266,13 +268,13 @@ input:focus,select:focus{border-color:#888}
     <div class="inv-row"><span>Days locked</span><span id="p-days">—</span></div>
     <div class="inv-row"><span>Rate / day (PKR)</span><span id="p-rate">—</span></div>
     <div class="inv-row"><span>Subtotal</span><span id="p-sub">—</span></div>
-    <div class="inv-row" style="margin-top:6px"><span>Discount (PKR)</span><input type="number" id="m-disc" min="0" value="0" placeholder="0" oninput="calcPreview()"/></div>
-    <div class="inv-row"><span>Tax % (optional)</span><input type="number" id="m-tax" min="0" max="100" placeholder="0" oninput="calcPreview()"/></div>
+    <div id="disc-tax-fields"><div class="inv-row" style="margin-top:6px"><span>Discount (PKR)</span><input type="number" id="m-disc" min="0" value="0" placeholder="0" oninput="calcPreview()"/></div>
+    <div class="inv-row"><span>Tax % (optional)</span><input type="number" id="m-tax" min="0" max="100" placeholder="0" oninput="calcPreview()"/></div></div>
     <div class="inv-total-row"><span>Total (PKR)</span><span id="p-total">—</span></div>
   </div>
   <div class="modal-actions">
     <button class="btn-cancel-modal" onclick="closeLockModal()">Cancel</button>
-    <button class="btn-confirm" onclick="confirmLock()">Confirm &amp; raise invoice</button>
+    <button class="btn-confirm" id="btn-confirm-lock" onclick="confirmLock()">Confirm &amp; raise invoice</button>
   </div>
 </div>
 </div>
@@ -329,33 +331,25 @@ input:focus,select:focus{border-color:#888}
 </div>
 
 <script>
-const SUPABASE_URL = 'https://mnzzgbvzeblapfgokjde.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1uenpnYnZ6ZWJsYXBmZ29ramRlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc1NTg0MjAsImV4cCI6MjA5MzEzNDQyMH0.lIh0OdpjUnLAcxbNNOddGgIRo2s5UtWzWyQnxb9GXDI';
 
-// ── Supabase helpers ──────────────────────────────────────────────────────────
-async function sb(method, table, body=null, params='') {
-  const url = `${SUPABASE_URL}/rest/v1/${table}${params ? '?'+params : ''}`;
-  const opts = {
-    method,
-    headers: {
-      'apikey': SUPABASE_KEY,
-      'Authorization': 'Bearer ' + SUPABASE_KEY,
-      'Content-Type': 'application/json',
-      'Prefer': method==='POST' ? 'return=representation' : (method==='PATCH'||method==='DELETE' ? 'return=representation' : '')
-    }
-  };
-  if(body) opts.body = JSON.stringify(body);
-  const res = await fetch(url, opts);
-  if(!res.ok) { const err = await res.text(); console.error('Supabase error:', err); return null; }
-  const text = await res.text();
-  return text ? JSON.parse(text) : [];
+const SUPABASE_URL='https://mnzzgbvzeblapfgokjde.supabase.co';
+const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1uenpnYnZ6ZWJsYXBmZ29ramRlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc1NTg0MjAsImV4cCI6MjA5MzEzNDQyMH0.lIh0OdpjUnLAcxbNNOddGgIRo2s5UtWzWyQnxb9GXDI';
+
+async function sb(method,table,body,params){
+  body=body||null;params=params||'';
+  const url=SUPABASE_URL+'/rest/v1/'+table+(params?'?'+params:'');
+  const prefer=method==='POST'?'return=representation':(method==='PATCH'||method==='DELETE'?'return=representation':'');
+  const opts={method,headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Content-Type':'application/json','Prefer':prefer}};
+  if(body)opts.body=JSON.stringify(body);
+  const res=await fetch(url,opts);
+  if(!res.ok){const err=await res.text();console.error('SB:',err);return null;}
+  const text=await res.text();return text?JSON.parse(text):[];
 }
-const dbGet = (table, params='') => sb('GET', table, null, params);
-const dbPost = (table, body) => sb('POST', table, body);
-const dbPatch = (table, body, params) => sb('PATCH', table, body, params);
-const dbDelete = (table, params) => sb('DELETE', table, null, params);
+const dbGet=(t,p)=>sb('GET',t,null,p||'');
+const dbPost=(t,b)=>sb('POST',t,b,'');
+const dbPatch=(t,b,p)=>sb('PATCH',t,b,p||'');
+const dbDelete=(t,p)=>sb('DELETE',t,null,p||'');
 
-// ── Constants ─────────────────────────────────────────────────────────────────
 const MONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];
 const BC=['#d5d0f7','#a8e6d0','#f7c9b5','#fdd8a0','#f5c6d8','#b8d9f5','#c8f0b0','#e8d0f5'];
 const BCLS=['b0','b1','b2','b3','b4','b5','b6','b7'];
@@ -412,71 +406,54 @@ const ASSETS=[
   {id:'sp-per',name:'Sponsored — Personal Care',page:'Sponsored',price:3500},
 ];
 
-let brands = [];
-let locks = [];
-let USERS = [];
-let currentUser = null;
-let invCount = 1;
-let curY=2026, curM=4;
-let hasConflict=false;
-let cancelTargetId=null;
+let brands=[],locks=[],USERS=[],currentUser=null,invCount=1,curY=2026,curM=4,hasConflict=false,cancelTargetId=null,approvalTargetId=null;
 
 const fmt=n=>'PKR '+Math.round(n).toLocaleString();
 const days=(s,e)=>Math.max(1,Math.round((new Date(e)-new Date(s))/86400000)+1);
 const brandIdx=b=>{let i=brands.indexOf(b);if(i<0){brands.push(b);i=brands.length-1;}return i%BC.length;};
 const brandColor=b=>BC[brandIdx(b)];
 const brandCls=b=>BCLS[brandIdx(b)];
-const lockTotal=l=>{
+const lockTotal=(l,od,ot)=>{
   const a=ASSETS.find(x=>x.id===l.assetId);if(!a)return 0;
   const sub=a.price*days(l.start,l.end);
-  const afterDisc=Math.max(0,sub-(l.disc||0));
-  return afterDisc*(1+(l.tax||0)/100);
+  const disc=od!=null?od:(l.disc||0);
+  const tax=ot!=null?ot:(l.tax||0);
+  return Math.max(0,sub-disc)*(1+tax/100);
 };
+const isBrandPOC=()=>currentUser&&currentUser.role==='brand_poc';
+const isAdminOrSales=()=>currentUser&&(currentUser.role==='admin'||currentUser.role==='sales');
 
-// ── LOADING ───────────────────────────────────────────────────────────────────
-function showLoading(msg='Loading...') {
-  let el = document.getElementById('loading-overlay');
-  if(!el) {
-    el = document.createElement('div');
-    el.id = 'loading-overlay';
-    el.style.cssText = 'position:fixed;inset:0;background:rgba(255,255,255,0.85);z-index:999;display:flex;align-items:center;justify-content:center;font-size:14px;color:#888;font-family:inherit';
-    el.innerHTML = `<div style="text-align:center"><div style="font-size:24px;margin-bottom:8px">⏳</div>${msg}</div>`;
-    document.body.appendChild(el);
-  }
+function showLoading(msg){
+  msg=msg||'Loading...';
+  let el=document.getElementById('loading-overlay');
+  if(!el){el=document.createElement('div');el.id='loading-overlay';el.style.cssText='position:fixed;inset:0;background:rgba(255,255,255,0.85);z-index:999;display:flex;align-items:center;justify-content:center;font-size:14px;color:#888;font-family:inherit';document.body.appendChild(el);}
+  el.innerHTML='<div style="text-align:center"><div style="font-size:24px;margin-bottom:8px">⏳</div>'+msg+'</div>';
   el.style.display='flex';
 }
-function hideLoading() {
-  const el = document.getElementById('loading-overlay');
-  if(el) el.style.display='none';
-}
+function hideLoading(){const el=document.getElementById('loading-overlay');if(el)el.style.display='none';}
 
-// ── AUTH ──────────────────────────────────────────────────────────────────────
-async function doLogin() {
-  const u = document.getElementById('login-user').value.trim();
-  const p = document.getElementById('login-pass').value;
-  if(!u||!p) return;
+async function doLogin(){
+  const u=document.getElementById('login-user').value.trim();
+  const p=document.getElementById('login-pass').value;
+  if(!u||!p)return;
   showLoading('Signing in...');
-  const res = await dbGet('users', `username=eq.${encodeURIComponent(u)}&password=eq.${encodeURIComponent(p)}&select=*`);
+  const res=await dbGet('users','username=eq.'+encodeURIComponent(u)+'&password=eq.'+encodeURIComponent(p)+'&select=*');
   hideLoading();
-  if(!res || res.length===0) {
-    document.getElementById('login-error').className='login-error show';
-    return;
-  }
-  currentUser = {id:res[0].id, name:res[0].name, username:res[0].username, role:res[0].role};
+  if(!res||res.length===0){document.getElementById('login-error').className='login-error show';return;}
+  currentUser={id:res[0].id,name:res[0].name,username:res[0].username,role:res[0].role,brand:res[0].brand||null};
   document.getElementById('login-screen').style.display='none';
   document.getElementById('app-screen').style.display='block';
-  document.getElementById('badge-name').textContent = currentUser.name;
-  const roleLabels = {admin:'Admin',sales:'Sales',marketing:'Marketing',finance:'Finance'};
-  const roleCls = {admin:'role-admin',sales:'role-sales',marketing:'role-marketing',finance:'role-finance'};
-  document.getElementById('badge-role-pill').innerHTML = `<span class="role-pill ${roleCls[currentUser.role]}">${roleLabels[currentUser.role]}</span>`;
-  document.getElementById('tab-users').style.display = currentUser.role==='admin' ? '' : 'none';
+  document.getElementById('badge-name').textContent=currentUser.name;
+  const roleLabels={admin:'Admin',sales:'Sales',marketing:'Marketing',finance:'Finance',brand_poc:'Brand'};
+  const roleCls={admin:'role-admin',sales:'role-sales',marketing:'role-marketing',finance:'role-finance',brand_poc:'role-sales'};
+  document.getElementById('badge-role-pill').innerHTML='<span class="role-pill '+(roleCls[currentUser.role]||'role-sales')+'">'+(roleLabels[currentUser.role]||currentUser.role)+(currentUser.brand?' · '+currentUser.brand:'')+'</span>';
+  document.getElementById('tab-users').style.display=currentUser.role==='admin'?'':'none';
   await loadAllData();
   applyRoleRestrictions();
 }
 
-function doLogout() {
-  currentUser = null;
-  locks = []; brands = [];
+function doLogout(){
+  currentUser=null;locks=[];brands=[];
   document.getElementById('app-screen').style.display='none';
   document.getElementById('login-screen').style.display='flex';
   document.getElementById('login-user').value='';
@@ -485,156 +462,206 @@ function doLogout() {
   switchTab('calendar');
 }
 
-// ── LOAD ALL DATA ─────────────────────────────────────────────────────────────
-async function loadAllData() {
+async function loadAllData(){
   showLoading('Loading data...');
-  // Load locks
-  const rawLocks = await dbGet('locks', 'select=*&order=created_at.desc') || [];
-  locks = rawLocks.map(l => ({
-    id: l.id, assetId: l.asset_id, brand: l.brand, btype: l.btype,
-    start: l.start_date, end: l.end_date, disc: l.discount, tax: l.tax,
-    invoiceDate: l.invoice_date
-  }));
-  // Load brands
-  const rawBrands = await dbGet('brands', 'select=name&order=name') || [];
-  brands = rawBrands.map(b => b.name);
-  // Load asset prices
-  const rawPrices = await dbGet('asset_prices', 'select=*') || [];
-  rawPrices.forEach(p => {
-    const a = ASSETS.find(x => x.id === p.id);
-    if(a) a.price = p.price;
-  });
-  // Load users (admin only)
-  if(currentUser.role==='admin') {
-    USERS = await dbGet('users', 'select=*&order=created_at') || [];
+  const rawLocks=await dbGet('locks','select=*&order=created_at.desc')||[];
+  locks=rawLocks.map(l=>({id:l.id,assetId:l.asset_id,brand:l.brand,btype:l.btype,start:l.start_date,end:l.end_date,disc:l.discount,tax:l.tax,invoiceDate:l.invoice_date,status:l.status||'booked',rejectionReason:l.rejection_reason||''}));
+  const rawBrands=await dbGet('brands','select=name&order=name')||[];
+  brands=rawBrands.map(b=>b.name);
+  const rawPrices=await dbGet('asset_prices','select=*')||[];
+  rawPrices.forEach(p=>{const a=ASSETS.find(x=>x.id===p.id);if(a)a.price=p.price;});
+  if(currentUser.role==='admin')USERS=await dbGet('users','select=*&order=created_at')||[];
+  invCount=locks.length+1;
+  hideLoading();renderAll();
+}
+
+function renderStats(){
+  if(isBrandPOC()){
+    const my=locks.filter(l=>l.brand===currentUser.brand);
+    const bkd=my.filter(l=>l.status==='booked');
+    const res=my.filter(l=>l.status==='reserved');
+    document.getElementById('stats-grid').innerHTML=
+      '<div class="stat-card"><div class="stat-label">My reservations</div><div class="stat-val">'+res.length+'</div></div>'+
+      '<div class="stat-card"><div class="stat-label">Confirmed bookings</div><div class="stat-val">'+bkd.length+'</div></div>'+
+      '<div class="stat-card"><div class="stat-label">Total spent (PKR)</div><div class="stat-val">'+Math.round(bkd.reduce((s,l)=>s+lockTotal(l),0)/1000)+'K</div></div>'+
+      '<div class="stat-card"><div class="stat-label">Assets booked</div><div class="stat-val">'+new Set(bkd.map(l=>l.assetId)).size+'</div></div>';
+    return;
   }
-  // Generate next invoice ID
-  invCount = locks.length + 1;
-  hideLoading();
-  renderAll();
-}
-
-// ── RENDER ────────────────────────────────────────────────────────────────────
-function renderStats() {
-  const rev=locks.reduce((s,l)=>s+lockTotal(l),0);
+  const bkd=locks.filter(l=>l.status==='booked');
+  const res=locks.filter(l=>l.status==='reserved');
+  const rev=bkd.reduce((s,l)=>s+lockTotal(l),0);
   document.getElementById('stats-grid').innerHTML=
-    `<div class="stat-card"><div class="stat-label">Total locks</div><div class="stat-val">${locks.length}</div></div>`+
-    `<div class="stat-card"><div class="stat-label">Brands active</div><div class="stat-val">${new Set(locks.map(l=>l.brand)).size}</div></div>`+
-    `<div class="stat-card"><div class="stat-label">Assets in use</div><div class="stat-val">${new Set(locks.map(l=>l.assetId)).size}</div></div>`+
-    `<div class="stat-card"><div class="stat-label">Revenue (PKR)</div><div class="stat-val">${Math.round(rev/1000)}K</div></div>`;
+    '<div class="stat-card"><div class="stat-label">Confirmed bookings</div><div class="stat-val">'+bkd.length+'</div></div>'+
+    '<div class="stat-card"><div class="stat-label">Pending approval</div><div class="stat-val" style="color:'+(res.length>0?'#cc7700':'inherit')+'">'+res.length+'</div></div>'+
+    '<div class="stat-card"><div class="stat-label">Assets in use</div><div class="stat-val">'+new Set(bkd.map(l=>l.assetId)).size+'</div></div>'+
+    '<div class="stat-card"><div class="stat-label">Revenue (PKR)</div><div class="stat-val">'+Math.round(rev/1000)+'K</div></div>';
 }
 
-function renderLegend() {
-  const ab=[...new Set(locks.map(l=>l.brand))];
-  document.getElementById('legend').innerHTML=ab.map(b=>`<div class="leg-item"><div class="leg-dot" style="background:${brandColor(b)}"></div>${b}</div>`).join('')+
-    `<div class="leg-item"><div class="leg-dot" style="background:#d9d9d9;border:1px solid #bbb"></div>Available</div>`;
+function renderLegend(){
+  if(isBrandPOC()){
+    document.getElementById('legend').innerHTML=
+      '<div class="leg-item"><div class="leg-dot" style="background:#d9d9d9;border:1px solid #bbb"></div>Available</div>'+
+      '<div class="leg-item"><div class="leg-dot" style="background:#fdd8a0"></div>Your reservation (pending)</div>'+
+      '<div class="leg-item"><div class="leg-dot" style="background:#a8e6d0"></div>Your confirmed booking</div>'+
+      '<div class="leg-item"><div class="leg-dot" style="background:#e8e8e8;border:1px solid #ccc"></div>Not available</div>';
+    return;
+  }
+  const ab=[...new Set(locks.filter(l=>l.status==='booked').map(l=>l.brand))];
+  document.getElementById('legend').innerHTML=
+    ab.map(b=>'<div class="leg-item"><div class="leg-dot" style="background:'+brandColor(b)+'"></div>'+b+'</div>').join('')+
+    '<div class="leg-item"><div class="leg-dot" style="background:#ffe0a0;border:1px solid #e6a817"></div>Reserved (pending)</div>'+
+    '<div class="leg-item"><div class="leg-dot" style="background:#d9d9d9;border:1px solid #bbb"></div>Available</div>';
 }
 
-function renderCal() {
+function renderCal(){
   const dim=new Date(curY,curM+1,0).getDate();
   document.getElementById('month-lbl').textContent=MONTHS[curM]+' '+curY;
   const td=new Date();const isCur=td.getFullYear()===curY&&td.getMonth()===curM;
-  let h=`<thead><tr><th style="text-align:left;padding:4px 8px 4px 0;font-size:11px;color:#888;min-width:185px">Asset</th>`;
-  for(let d=1;d<=dim;d++)h+=`<th>${d}</th>`;
-  h+=`</tr></thead><tbody>`;
+  let h='<thead><tr><th style="text-align:left;padding:4px 8px 4px 0;font-size:11px;color:#888;min-width:185px">Asset</th>';
+  for(let d=1;d<=dim;d++)h+='<th>'+d+'</th>';
+  h+='</tr></thead><tbody>';
   ['Homepage','Parent category','Child category','Sponsored'].forEach(pg=>{
     const pa=ASSETS.filter(a=>a.page===pg);if(!pa.length)return;
-    h+=`<tr class="sec-hd-row"><td colspan="${dim+1}">${pg}</td></tr>`;
+    h+='<tr class="sec-hd-row"><td colspan="'+(dim+1)+'">'+pg+'</td></tr>';
     pa.forEach(asset=>{
-      h+=`<tr><td class="asset-name-cell" title="${asset.name}">${asset.name}</td>`;
+      h+='<tr><td class="asset-name-cell" title="'+asset.name+'">'+asset.name+'</td>';
       for(let d=1;d<=dim;d++){
-        const ds=`${curY}-${String(curM+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-        const lk=locks.find(l=>l.assetId===asset.id&&l.start<=ds&&l.end>=ds);
+        const ds=curY+'-'+String(curM+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+        const lk=locks.find(l=>l.assetId===asset.id&&l.start<=ds&&l.end>=ds&&(l.status==='booked'||l.status==='reserved'));
         const ring=isCur&&d===td.getDate()?'outline:2px solid #1a1a1a;':'';
-        const canLock=currentUser&&(currentUser.role==='admin'||currentUser.role==='sales');
-        if(lk)h+=`<td class="day-cell"><div class="dc ${brandCls(lk.brand)}" style="${ring}" title="${lk.brand}: ${lk.start} to ${lk.end}" ${canLock?`onclick="openLockModal('${asset.id}','${ds}')"`:''}>${lk.brand[0]}</div></td>`;
-        else h+=`<td class="day-cell"><div class="dc free" style="${ring}" ${canLock?`onclick="openLockModal('${asset.id}','${ds}')"`:''}></div></td>`;
+        if(isBrandPOC()){
+          if(lk){
+            if(lk.brand===currentUser.brand){
+              const isRes=lk.status==='reserved';
+              h+='<td class="day-cell"><div class="dc '+(isRes?'b3':'b1')+'" style="'+ring+'" title="'+(isRes?'Your reservation':'Your confirmed booking')+'">'+(isRes?'R':'✓')+'</div></td>';
+            }else{
+              h+='<td class="day-cell"><div class="dc" style="background:#e8e8e8;color:#aaa;'+ring+'" title="Not available">✕</div></td>';
+            }
+          }else{
+            h+='<td class="day-cell"><div class="dc free" style="'+ring+'" onclick="openLockModal(''+asset.id+'',''+ds+'')"></div></td>';
+          }
+        }else{
+          if(lk){
+            if(lk.status==='reserved'){
+              h+='<td class="day-cell"><div class="dc" style="background:#ffe0a0;color:#8a5700;cursor:pointer;'+ring+'" title="Reserved: '+lk.brand+'" onclick="openLockModal(''+asset.id+'',''+ds+'')">R</div></td>';
+            }else{
+              h+='<td class="day-cell"><div class="dc '+brandCls(lk.brand)+'" style="cursor:pointer;'+ring+'" title="'+lk.brand+': '+lk.start+' to '+lk.end+'" onclick="openLockModal(''+asset.id+'',''+ds+'')">' +lk.brand[0]+'</div></td>';
+            }
+          }else{
+            const canAct=isAdminOrSales();
+            h+='<td class="day-cell"><div class="dc free" style="'+ring+'" '+(canAct?'onclick="openLockModal(''+asset.id+'',''+ds+'')"':'')+' ></div></td>';
+          }
+        }
       }
-      h+=`</tr>`;
+      h+='</tr>';
     });
   });
-  document.getElementById('cal-table').innerHTML=h+`</tbody>`;
+  document.getElementById('cal-table').innerHTML=h+'</tbody>';
 }
 
-function renderLocks() {
+function renderLocks(){
   const fb=document.getElementById('filter-brand').value;
   const fa=document.getElementById('filter-asset').value;
   const bSel=document.getElementById('filter-brand');
   const aSel=document.getElementById('filter-asset');
-  brands.forEach(b=>{if(![...bSel.options].find(o=>o.value===b)){const o=document.createElement('option');o.value=b;o.textContent=b;bSel.appendChild(o);}});
+  if(!isBrandPOC())brands.forEach(b=>{if(![...bSel.options].find(o=>o.value===b)){const o=document.createElement('option');o.value=b;o.textContent=b;bSel.appendChild(o);}});
   ASSETS.forEach(a=>{if(![...aSel.options].find(o=>o.value===a.id)){const o=document.createElement('option');o.value=a.id;o.textContent=a.name;aSel.appendChild(o);}});
-  const fl=locks.filter(l=>(!fb||l.brand===fb)&&(!fa||l.assetId===fa));
-  const canLock=currentUser&&(currentUser.role==='admin'||currentUser.role==='sales');
-  document.getElementById('locks-list').innerHTML=fl.length?fl.map(l=>{
-    const a=ASSETS.find(x=>x.id===l.assetId);
-    return `<div class="lock-card">
-      <div class="lc-dot" style="background:${brandColor(l.brand)}"></div>
-      <div class="lc-info">
-        <div class="lc-asset">${a?a.name:l.assetId}</div>
-        <div class="lc-meta">${l.brand}${l.btype?' · '+l.btype:''} &nbsp;·&nbsp; ${l.start} → ${l.end} &nbsp;·&nbsp; ${days(l.start,l.end)} days</div>
-      </div>
-      <span class="badge-locked">Locked</span>
-      <div class="lc-amt">${fmt(lockTotal(l))}</div>
-      <button class="cancel-btn" style="border-color:#b3d4ff;color:#0055cc" onclick="viewInvoice('${l.id}')">View invoice</button>
-      ${canLock?`<button class="cancel-btn" onclick="askCancel('${l.id}')">Cancel lock</button>`:''}
-    </div>`;
-  }).join(''):`<div style="font-size:13px;color:#888;padding:1rem 0">No locks found.</div>`;
+  let fl=isBrandPOC()?locks.filter(l=>l.brand===currentUser.brand):locks;
+  fl=fl.filter(l=>(!fb||l.brand===fb)&&(!fa||l.assetId===fa));
+  let pendingHtml='';
+  if(isAdminOrSales()){
+    const pending=fl.filter(l=>l.status==='reserved');
+    if(pending.length>0){
+      pendingHtml='<div style="margin-bottom:16px"><div style="font-size:12px;font-weight:600;color:#cc7700;margin-bottom:8px"><span style="background:#fff3cd;border:1px solid #e6a817;border-radius:10px;padding:2px 8px">⏳ Pending approval ('+pending.length+')</span></div>'+pending.map(l=>lockCardHtml(l)).join('')+'</div><div style="font-size:12px;font-weight:600;color:#888;margin-bottom:8px">Confirmed bookings</div>';
+    }
+  }
+  const confirmed=fl.filter(l=>l.status==='booked');
+  const rejected=fl.filter(l=>l.status==='rejected');
+  const confirmedHtml=confirmed.length?confirmed.map(l=>lockCardHtml(l)).join(''):'<div style="font-size:13px;color:#888;padding:1rem 0">No confirmed bookings.</div>';
+  const rejectedHtml=rejected.length?'<div style="margin-top:16px"><div style="font-size:12px;font-weight:600;color:#cc0000;margin-bottom:8px">Rejected</div>'+rejected.map(l=>lockCardHtml(l)).join('')+'</div>':'';
+  document.getElementById('locks-list').innerHTML=pendingHtml+confirmedHtml+rejectedHtml;
 }
 
-function renderPricing() {
+function lockCardHtml(l){
+  const a=ASSETS.find(x=>x.id===l.assetId);
+  const total=lockTotal(l);
+  const statusBadge=l.status==='reserved'?'<span style="font-size:10px;padding:3px 8px;border-radius:10px;background:#fff3cd;color:#8a5700;font-weight:500;white-space:nowrap">Reserved</span>':l.status==='rejected'?'<span style="font-size:10px;padding:3px 8px;border-radius:10px;background:#ffe0e0;color:#cc0000;font-weight:500;white-space:nowrap">Rejected</span>':'<span class="badge-locked">Booked</span>';
+  const canCancel=isBrandPOC()&&l.status==='reserved';
+  const canApprove=isAdminOrSales()&&l.status==='reserved';
+  const canCancelAdmin=isAdminOrSales()&&l.status==='booked';
+  const showInv=l.status==='booked'||(isBrandPOC()&&l.status==='reserved');
+  const borderStyle=l.status==='reserved'?'border-color:#e6a817;':l.status==='rejected'?'border-color:#ffb3b3;':'';
+  const dotColor=l.status==='reserved'?'#e6a817':l.status==='rejected'?'#ffb3b3':brandColor(l.brand);
+  return '<div class="lock-card" style="'+borderStyle+'">'+
+    '<div class="lc-dot" style="background:'+dotColor+'"></div>'+
+    '<div class="lc-info"><div class="lc-asset">'+(a?a.name:l.assetId)+'</div>'+
+    '<div class="lc-meta">'+l.brand+(l.btype?' · '+l.btype:'')+' · '+l.start+' → '+l.end+' · '+days(l.start,l.end)+' days'+(l.status==='rejected'&&l.rejectionReason?' · Reason: '+l.rejectionReason:'')+'</div></div>'+
+    statusBadge+
+    '<div class="lc-amt">'+fmt(total)+'</div>'+
+    (showInv?'<button class="cancel-btn" style="border-color:#b3d4ff;color:#0055cc" onclick="viewInvoice(''+l.id+'')">View invoice</button>':'')+
+    (canApprove?'<button class="cancel-btn" style="border-color:#90d4a8;color:#1a7a3c" onclick="openApproval(''+l.id+'')">Approve</button><button class="cancel-btn" onclick="askReject(''+l.id+'')">Reject</button>':'')+
+    (canCancel?'<button class="cancel-btn" onclick="askCancel(''+l.id+'')">Cancel</button>':'')+
+    (canCancelAdmin?'<button class="cancel-btn" onclick="askCancel(''+l.id+'')">Cancel lock</button>':'')+
+    '</div>';
+}
+
+function renderPricing(){
+  if(isBrandPOC())return;
   const canEdit=currentUser&&(currentUser.role==='admin'||currentUser.role==='finance');
   const tmap={Homepage:'tp-home','Parent category':'tp-parent','Child category':'tp-child',Sponsored:'tp-sponsored'};
-  let h=`<thead><tr><th>Asset</th><th>Type</th><th style="text-align:right">Price/day (PKR)</th></tr></thead>`;
+  let h='<thead><tr><th>Asset</th><th>Type</th><th style="text-align:right">Price/day (PKR)</th></tr></thead>';
   ['Homepage','Parent category','Child category','Sponsored'].forEach(pg=>{
     const pa=ASSETS.filter(a=>a.page===pg);if(!pa.length)return;
-    h+=`<tbody><tr><td colspan="3" style="padding:10px 10px 4px;font-size:10px;font-weight:600;color:#aaa;text-transform:uppercase;letter-spacing:0.05em;border-bottom:1px solid #f5f5f5">${pg}</td></tr>`;
-    pa.forEach(a=>{h+=`<tr><td>${a.name}</td><td><span class="type-pill ${tmap[pg]||'tp-home'}">${pg}</span></td><td style="text-align:right"><input type="number" class="price-inp" data-id="${a.id}" value="${a.price}" ${canEdit?'':'disabled'}/></td></tr>`;});
-    h+=`</tbody>`;
+    h+='<tbody><tr><td colspan="3" style="padding:10px 10px 4px;font-size:10px;font-weight:600;color:#aaa;text-transform:uppercase;letter-spacing:0.05em;border-bottom:1px solid #f5f5f5">'+pg+'</td></tr>';
+    pa.forEach(a=>{h+='<tr><td>'+a.name+'</td><td><span class="type-pill '+(tmap[pg]||'tp-home')+'">'+pg+'</span></td><td style="text-align:right"><input type="number" class="price-inp" data-id="'+a.id+'" value="'+a.price+'" '+(canEdit?'':'disabled')+'/></td></tr>';});
+    h+='</tbody>';
   });
   document.getElementById('pricing-table').innerHTML=h;
   const addSection=document.getElementById('add-asset-section');
-  if(addSection) addSection.style.display=currentUser&&currentUser.role==='admin'?'':'none';
+  if(addSection)addSection.style.display=currentUser&&currentUser.role==='admin'?'':'none';
   const saveBtn=document.getElementById('save-prices-btn');
-  if(saveBtn) saveBtn.style.display=canEdit?'':'none';
+  if(saveBtn)saveBtn.style.display=canEdit?'':'none';
 }
 
-async function savePrices() {
+async function savePrices(){
   showLoading('Saving prices...');
   const updates=[];
-  document.querySelectorAll('.price-inp[data-id]').forEach(i=>{
-    const a=ASSETS.find(x=>x.id===i.dataset.id);
-    if(a&&i.value){a.price=parseFloat(i.value);updates.push({id:a.id,price:a.price});}
-  });
-  for(const u of updates) {
-    await dbDelete('asset_prices',`id=eq.${u.id}`);
-    await dbPost('asset_prices', u);
-  }
-  hideLoading();
-  renderStats();
-  alert('Prices saved.');
+  document.querySelectorAll('.price-inp[data-id]').forEach(i=>{const a=ASSETS.find(x=>x.id===i.dataset.id);if(a&&i.value){a.price=parseFloat(i.value);updates.push({id:a.id,price:a.price});}});
+  for(const u of updates){await dbDelete('asset_prices','id=eq.'+u.id);await dbPost('asset_prices',u);}
+  hideLoading();renderStats();alert('Prices saved.');
 }
 
-async function addAsset() {
+async function addAsset(){
   const n=document.getElementById('new-name').value.trim();
   const t=document.getElementById('new-type').value;
   const p=parseFloat(document.getElementById('new-price').value)||5000;
   if(!n){alert('Please enter an asset name.');return;}
   ASSETS.push({id:'c'+Date.now(),name:n,page:t,price:p});
   document.getElementById('new-name').value='';document.getElementById('new-price').value='';
-  renderAll();
-  alert('"'+n+'" added.');
+  renderAll();alert('"'+n+'" added.');
 }
 
-// ── LOCK MODAL ────────────────────────────────────────────────────────────────
-function populateAssetDrop() {
-  document.getElementById('m-asset').innerHTML=ASSETS.map(a=>`<option value="${a.id}">${a.name} — PKR ${a.price.toLocaleString()}/day</option>`).join('');
+function populateAssetDrop(){
+  document.getElementById('m-asset').innerHTML=ASSETS.map(a=>'<option value="'+a.id+'">'+a.name+' — PKR '+a.price.toLocaleString()+'/day</option>').join('');
 }
 
-function openLockModal(assetId,dateStr) {
+function openLockModal(assetId,dateStr){
   populateAssetDrop();
-  document.getElementById('brand-dl').innerHTML=brands.map(b=>`<option value="${b}">`).join('');
+  document.getElementById('brand-dl').innerHTML=brands.map(b=>'<option value="'+b+'">').join('');
   if(assetId)document.getElementById('m-asset').value=assetId;
-  document.getElementById('m-brand').value='';
+  if(isBrandPOC()){
+    document.getElementById('m-brand').value=currentUser.brand;
+    document.getElementById('brand-fields').style.display='none';
+    document.getElementById('m-modal-title').textContent='Reserve an asset';
+    document.getElementById('btn-confirm-lock').textContent='Reserve slot';
+    document.getElementById('disc-tax-fields').style.display='none';
+  }else{
+    document.getElementById('m-brand').value='';
+    document.getElementById('brand-fields').style.display='';
+    document.getElementById('m-modal-title').textContent='Lock an asset';
+    document.getElementById('btn-confirm-lock').textContent='Confirm & raise invoice';
+    document.getElementById('disc-tax-fields').style.display='';
+  }
   document.getElementById('m-btype').value='';
   document.getElementById('m-disc').value='0';
   document.getElementById('m-tax').value='';
@@ -645,10 +672,7 @@ function openLockModal(assetId,dateStr) {
     document.getElementById('m-start').value=dateStr;
     const e=new Date(dateStr);e.setDate(e.getDate()+6);
     document.getElementById('m-end').value=e.toISOString().split('T')[0];
-  }else{
-    document.getElementById('m-start').value='';
-    document.getElementById('m-end').value='';
-  }
+  }else{document.getElementById('m-start').value='';document.getElementById('m-end').value='';}
   calcPreview();
   document.getElementById('lock-overlay').classList.add('open');
 }
@@ -656,73 +680,104 @@ function openLockModal(assetId,dateStr) {
 function closeLockModal(){document.getElementById('lock-overlay').classList.remove('open');}
 function closeInvModal(){document.getElementById('inv-overlay').classList.remove('open');}
 
-function calcPreview() {
+function calcPreview(){
   const aid=document.getElementById('m-asset').value;
   const a=ASSETS.find(x=>x.id===aid);
   const s=document.getElementById('m-start').value;
   const e=document.getElementById('m-end').value;
-  const disc=parseFloat(document.getElementById('m-disc').value)||0;
-  const tax=parseFloat(document.getElementById('m-tax').value)||0;
+  const disc=isBrandPOC()?0:(parseFloat(document.getElementById('m-disc').value)||0);
+  const tax=isBrandPOC()?0:(parseFloat(document.getElementById('m-tax').value)||0);
   if(!a||!s||!e){['p-days','p-rate','p-sub','p-total'].forEach(id=>document.getElementById(id).textContent='—');return;}
-  const d=days(s,e);
-  const sub=a.price*d;
-  const afterDisc=Math.max(0,sub-disc);
-  const total=afterDisc*(1+tax/100);
+  const d=days(s,e);const sub=a.price*d;
+  const total=Math.max(0,sub-disc)*(1+tax/100);
   document.getElementById('p-days').textContent=d;
   document.getElementById('p-rate').textContent=fmt(a.price);
   document.getElementById('p-sub').textContent=fmt(sub);
   document.getElementById('p-total').textContent=fmt(total);
-  const cf=locks.find(l=>l.assetId===aid&&!(e<l.start||s>l.end));
+  const cf=locks.find(l=>l.assetId===aid&&!(e<l.start||s>l.end)&&(l.status==='booked'||l.status==='reserved'));
   const cbox=document.getElementById('conflict-box');
-  if(cf){hasConflict=true;cbox.className='conflict-box show';cbox.textContent='Already locked for '+cf.brand+' ('+cf.start+' → '+cf.end+'). Please choose different dates or cancel the existing lock first.';}
+  if(cf){hasConflict=true;cbox.className='conflict-box show';cbox.textContent=isBrandPOC()?'This slot is not available for the selected dates.':'Already taken by '+cf.brand+' ('+cf.start+' → '+cf.end+')';}
   else{hasConflict=false;cbox.className='conflict-box';}
 }
 
-async function confirmLock() {
-  if(!currentUser||(currentUser.role!=='admin'&&currentUser.role!=='sales')){
-    alert('You do not have permission to lock assets.');return;
-  }
+async function confirmLock(){
   const aid=document.getElementById('m-asset').value;
-  const brand=document.getElementById('m-brand').value.trim();
+  const brand=isBrandPOC()?currentUser.brand:document.getElementById('m-brand').value.trim();
   const btype=document.getElementById('m-btype').value;
   const s=document.getElementById('m-start').value;
   const e=document.getElementById('m-end').value;
-  const disc=parseFloat(document.getElementById('m-disc').value)||0;
-  const tax=parseFloat(document.getElementById('m-tax').value)||0;
+  const disc=isBrandPOC()?0:(parseFloat(document.getElementById('m-disc').value)||0);
+  const tax=isBrandPOC()?0:(parseFloat(document.getElementById('m-tax').value)||0);
   const errEl=document.getElementById('form-error');
-  if(!brand||!s||!e){errEl.className='error-banner show';errEl.textContent='Please fill in brand, start date, and end date.';return;}
-  if(hasConflict){errEl.className='error-banner show';errEl.textContent='Cannot confirm — this asset is already locked for the selected dates.';return;}
+  if(!brand||!s||!e){errEl.className='error-banner show';errEl.textContent='Please fill in all required fields.';return;}
+  if(hasConflict){errEl.className='error-banner show';errEl.textContent=isBrandPOC()?'This slot is not available.':'This asset is already taken for the selected dates.';return;}
   errEl.className='error-banner';
-  showLoading('Saving lock...');
-  // Save brand if new
-  if(!brands.includes(brand)) {
-    await dbPost('brands', {name:brand, type:btype||null});
-    brands.push(brand);
-  }
-  const invDateStr = new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
-  const id='L'+String(invCount).padStart(3,'0');
-  invCount++;
-  const lockRow = {
-    id, asset_id:aid, brand, btype:btype||null,
-    start_date:s, end_date:e, discount:disc, tax, invoice_date:invDateStr
-  };
-  await dbPost('locks', lockRow);
-  const lock = {id,assetId:aid,brand,btype,start:s,end:e,disc,tax,invoiceDate:invDateStr};
+  showLoading(isBrandPOC()?'Submitting reservation...':'Saving lock...');
+  if(!brands.includes(brand)){await dbPost('brands',{name:brand,type:btype||null});brands.push(brand);}
+  const invDateStr=new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
+  const id='L'+String(invCount).padStart(3,'0');invCount++;
+  const status=isBrandPOC()?'reserved':'booked';
+  await dbPost('locks',{id,asset_id:aid,brand,btype:btype||null,start_date:s,end_date:e,discount:disc,tax,invoice_date:invDateStr,status});
+  const lock={id,assetId:aid,brand,btype,start:s,end:e,disc,tax,invoiceDate:invDateStr,status};
   locks.unshift(lock);
-  closeLockModal();
-  hideLoading();
-  renderAll();
+  closeLockModal();hideLoading();renderAll();
   showInvoice(lock);
 }
 
-// ── INVOICE ───────────────────────────────────────────────────────────────────
-function viewInvoice(lockId) {
+function openApproval(lockId){
+  approvalTargetId=lockId;
   const l=locks.find(x=>x.id===lockId);
-  if(!l){alert('Invoice not found.');return;}
-  showInvoice(l);
+  const a=ASSETS.find(x=>x.id===l.assetId);
+  const sub=a.price*days(l.start,l.end);
+  document.getElementById('approval-asset').textContent=a.name;
+  document.getElementById('approval-brand').textContent=l.brand+' · '+l.start+' → '+l.end+' ('+days(l.start,l.end)+' days)';
+  document.getElementById('approval-subtotal').textContent=fmt(sub);
+  document.getElementById('approval-disc').value='0';
+  document.getElementById('approval-tax').value='';
+  calcApprovalTotal();
+  document.getElementById('approval-overlay').classList.add('open');
+}
+function closeApproval(){document.getElementById('approval-overlay').classList.remove('open');approvalTargetId=null;}
+function calcApprovalTotal(){
+  const l=locks.find(x=>x.id===approvalTargetId);if(!l)return;
+  const a=ASSETS.find(x=>x.id===l.assetId);
+  const sub=a.price*days(l.start,l.end);
+  const disc=parseFloat(document.getElementById('approval-disc').value)||0;
+  const tax=parseFloat(document.getElementById('approval-tax').value)||0;
+  document.getElementById('approval-total').textContent=fmt(Math.max(0,sub-disc)*(1+tax/100));
+}
+async function confirmApproval(){
+  const l=locks.find(x=>x.id===approvalTargetId);if(!l)return;
+  const disc=parseFloat(document.getElementById('approval-disc').value)||0;
+  const tax=parseFloat(document.getElementById('approval-tax').value)||0;
+  showLoading('Approving...');
+  const invDateStr=new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
+  await dbPatch('locks',{status:'booked',discount:disc,tax,invoice_date:invDateStr},'id=eq.'+approvalTargetId);
+  l.status='booked';l.disc=disc;l.tax=tax;l.invoiceDate=invDateStr;
+  closeApproval();hideLoading();renderAll();showInvoice(l);
 }
 
-function showInvoice(lock) {
+function askReject(lockId){
+  approvalTargetId=lockId;
+  const l=locks.find(x=>x.id===lockId);
+  const a=ASSETS.find(x=>x.id===l.assetId);
+  document.getElementById('reject-msg').textContent='Rejecting reservation for "'+(a?a.name:l.assetId)+'" by '+l.brand+'.';
+  document.getElementById('reject-reason').value='';
+  document.getElementById('reject-overlay').classList.add('open');
+}
+function closeReject(){document.getElementById('reject-overlay').classList.remove('open');approvalTargetId=null;}
+async function confirmReject(){
+  const reason=document.getElementById('reject-reason').value.trim();
+  showLoading('Rejecting...');
+  await dbPatch('locks',{status:'rejected',rejection_reason:reason||null},'id=eq.'+approvalTargetId);
+  const l=locks.find(x=>x.id===approvalTargetId);
+  if(l){l.status='rejected';l.rejectionReason=reason;}
+  closeReject();hideLoading();renderAll();
+}
+
+function viewInvoice(lockId){const l=locks.find(x=>x.id===lockId);if(!l)return;showInvoice(l);}
+
+function showInvoice(lock){
   const a=ASSETS.find(x=>x.id===lock.assetId);
   const d=days(lock.start,lock.end);
   const sub=a.price*d;
@@ -731,122 +786,154 @@ function showInvoice(lock) {
   const taxAmt=afterDisc*((lock.tax||0)/100);
   const total=afterDisc+taxAmt;
   const invDateStr=lock.invoiceDate||new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
-  document.getElementById('inv-num').textContent='Invoice #'+lock.id+'  ·  '+invDateStr;
-  document.getElementById('inv-no').textContent=lock.id;
+  const isTemp=lock.status==='reserved';
+  document.getElementById('inv-num').textContent=(isTemp?'PROVISIONAL Invoice #':'Invoice #')+lock.id+'  ·  '+invDateStr;
+  document.getElementById('inv-no').textContent=(isTemp?'PROVISIONAL-':'')+lock.id;
   document.getElementById('inv-date').textContent=invDateStr;
   document.getElementById('inv-period').textContent=lock.start+' → '+lock.end;
   document.getElementById('inv-to-name').textContent=lock.brand;
   document.getElementById('inv-to-type').textContent=lock.btype||'';
-  document.getElementById('inv-lines').innerHTML=`<tr><td>${a.name}</td><td style="text-align:right">${d}</td><td style="text-align:right">${fmt(a.price)}</td><td style="text-align:right">${fmt(sub)}</td></tr>`;
-  let tots=`<div class="inv-tot-row"><span>Subtotal</span><span>${fmt(sub)}</span></div>`;
-  if(discAmt>0)tots+=`<div class="inv-tot-row"><span>Discount</span><span style="color:#1a7a3c">− ${fmt(discAmt)}</span></div>`;
-  if(lock.tax>0)tots+=`<div class="inv-tot-row"><span>Tax (${lock.tax}%)</span><span>+ ${fmt(taxAmt)}</span></div>`;
-  tots+=`<div class="inv-grand"><span>Total (PKR)</span><span>${fmt(total)}</span></div>`;
+  const eb=document.getElementById('inv-provisional-banner');if(eb)eb.remove();
+  if(isTemp){
+    const banner=document.createElement('div');
+    banner.id='inv-provisional-banner';
+    banner.style.cssText='background:#fff3cd;border:1px solid #e6a817;border-radius:8px;padding:8px 12px;font-size:12px;color:#8a5700;margin-bottom:12px;text-align:center;font-weight:500';
+    banner.textContent='⚠ PROVISIONAL — Subject to confirmation by Naheed Super Market';
+    const linesParent=document.getElementById('inv-lines').closest('table');
+    linesParent.parentNode.insertBefore(banner,linesParent);
+  }
+  document.getElementById('inv-lines').innerHTML='<tr><td>'+a.name+'</td><td style="text-align:right">'+d+'</td><td style="text-align:right">'+fmt(a.price)+'</td><td style="text-align:right">'+fmt(sub)+'</td></tr>';
+  let tots='<div class="inv-tot-row"><span>Subtotal</span><span>'+fmt(sub)+'</span></div>';
+  if(discAmt>0)tots+='<div class="inv-tot-row"><span>Discount</span><span style="color:#1a7a3c">− '+fmt(discAmt)+'</span></div>';
+  if(lock.tax>0)tots+='<div class="inv-tot-row"><span>Tax ('+lock.tax+'%)</span><span>+ '+fmt(taxAmt)+'</span></div>';
+  tots+='<div class="inv-grand"><span>Total (PKR)</span><span>'+fmt(total)+'</span></div>';
   document.getElementById('inv-totals').innerHTML=tots;
   document.getElementById('inv-overlay').classList.add('open');
 }
-
 function printInvoice(){window.print();}
 
-// ── CANCEL LOCK ───────────────────────────────────────────────────────────────
-function askCancel(lockId) {
+function askCancel(lockId){
   const l=locks.find(x=>x.id===lockId);
   const a=ASSETS.find(x=>x.id===l.assetId);
   cancelTargetId=lockId;
-  document.getElementById('cancel-msg').textContent=`This will remove the lock on "${a?a.name:l.assetId}" for ${l.brand} (${l.start} → ${l.end}). This cannot be undone.`;
+  document.getElementById('cancel-msg').textContent='This will remove the '+(l.status==='reserved'?'reservation':'lock')+' on "'+(a?a.name:l.assetId)+'" for '+l.brand+' ('+l.start+' → '+l.end+'). This cannot be undone.';
   document.getElementById('cancel-overlay').classList.add('open');
 }
 function closeCancelConfirm(){document.getElementById('cancel-overlay').classList.remove('open');cancelTargetId=null;}
-async function doCancel() {
+async function doCancel(){
   if(!cancelTargetId)return;
-  showLoading('Cancelling lock...');
-  await dbDelete('locks',`id=eq.${cancelTargetId}`);
+  showLoading('Cancelling...');
+  await dbDelete('locks','id=eq.'+cancelTargetId);
   locks=locks.filter(l=>l.id!==cancelTargetId);
-  cancelTargetId=null;
-  closeCancelConfirm();
-  hideLoading();
-  renderAll();
+  cancelTargetId=null;closeCancelConfirm();hideLoading();renderAll();
 }
 
-// ── USER MANAGEMENT ───────────────────────────────────────────────────────────
-function renderUsers() {
+function renderUsers(){
   if(!currentUser||currentUser.role!=='admin')return;
-  const roleLabels={admin:'Admin',sales:'Sales',marketing:'Marketing',finance:'Finance'};
-  const roleCls={admin:'role-admin',sales:'role-sales',marketing:'role-marketing',finance:'role-finance'};
-  const tbl=document.getElementById('um-table');
-  if(!tbl)return;
-  tbl.innerHTML=`<thead><tr><th>Name</th><th>Username</th><th>Role</th><th>Action</th></tr></thead><tbody>`+
-    USERS.map(u=>`<tr>
-      <td>${u.name}</td><td style="color:#888">${u.username}</td>
-      <td><span class="role-pill ${roleCls[u.role]||'role-sales'}">${roleLabels[u.role]||u.role}</span></td>
-      <td>${u.id===currentUser.id?'<span style="font-size:11px;color:#aaa">You</span>':`<button class="um-del" onclick="deleteUser('${u.id}')">Remove</button>`}</td>
-    </tr>`).join('')+`</tbody>`;
+  const roleLabels={admin:'Admin',sales:'Sales',marketing:'Marketing',finance:'Finance',brand_poc:'Brand POC'};
+  const roleCls={admin:'role-admin',sales:'role-sales',marketing:'role-marketing',finance:'role-finance',brand_poc:'role-sales'};
+  const tbl=document.getElementById('um-table');if(!tbl)return;
+  tbl.innerHTML='<thead><tr><th>Name</th><th>Username</th><th>Role</th><th>Brand</th><th>Action</th></tr></thead><tbody>'+
+    USERS.map(u=>'<tr><td>'+u.name+'</td><td style="color:#888">'+u.username+'</td><td><span class="role-pill '+(roleCls[u.role]||'role-sales')+'">'+(roleLabels[u.role]||u.role)+'</span></td><td style="color:#888">'+(u.brand||'—')+'</td><td>'+(u.id===currentUser.id?'<span style="font-size:11px;color:#aaa">You</span>':'<button class="um-del" onclick="deleteUser(''+u.id+'')">Remove</button>')+'</td></tr>').join('')+'</tbody>';
 }
 
-function openAddUser(){document.getElementById('add-user-box').style.display='block';}
+function openAddUser(){document.getElementById('add-user-box').style.display='block';toggleBrandField();}
 function closeAddUser(){document.getElementById('add-user-box').style.display='none';}
+function toggleBrandField(){
+  const role=document.getElementById('nu-role').value;
+  const bf=document.getElementById('nu-brand-field');
+  if(bf)bf.style.display=role==='brand_poc'?'':'none';
+}
 
-async function saveNewUser() {
+async function saveNewUser(){
   const name=document.getElementById('nu-name').value.trim();
   const uname=document.getElementById('nu-user').value.trim();
   const pass=document.getElementById('nu-pass').value;
   const role=document.getElementById('nu-role').value;
+  const brand=role==='brand_poc'?(document.getElementById('nu-brand').value.trim()||null):null;
   const errEl=document.getElementById('nu-error');
   if(!name||!uname||!pass){errEl.className='error-banner show';errEl.textContent='Please fill in all fields.';return;}
   if(pass.length<6){errEl.className='error-banner show';errEl.textContent='Password must be at least 6 characters.';return;}
   if(USERS.find(u=>u.username===uname)){errEl.className='error-banner show';errEl.textContent='Username already exists.';return;}
+  if(role==='brand_poc'&&!brand){errEl.className='error-banner show';errEl.textContent='Please enter the brand name for this POC.';return;}
   errEl.className='error-banner';
   showLoading('Adding user...');
-  const res=await dbPost('users',{name,username:uname,password:pass,role});
-  if(res&&res.length>0) USERS.push(res[0]);
+  const res=await dbPost('users',{name,username:uname,password:pass,role,brand});
+  if(res&&res.length>0)USERS.push(res[0]);
   hideLoading();
-  document.getElementById('nu-name').value='';
-  document.getElementById('nu-user').value='';
-  document.getElementById('nu-pass').value='';
-  closeAddUser();
-  renderUsers();
+  document.getElementById('nu-name').value='';document.getElementById('nu-user').value='';document.getElementById('nu-pass').value='';
+  closeAddUser();renderUsers();
   alert('User "'+name+'" added successfully.');
 }
 
-async function deleteUser(id) {
+async function deleteUser(id){
   if(!confirm('Remove this user?'))return;
-  showLoading('Removing user...');
-  await dbDelete('users',`id=eq.${id}`);
+  showLoading('Removing...');
+  await dbDelete('users','id=eq.'+id);
   USERS=USERS.filter(u=>u.id!==id);
-  hideLoading();
-  renderUsers();
+  hideLoading();renderUsers();
 }
 
-// ── RENDER ALL ────────────────────────────────────────────────────────────────
-function renderAll() {
-  renderStats();renderLegend();renderCal();renderLocks();renderPricing();renderUsers();
-}
+function renderAll(){renderStats();renderLegend();renderCal();renderLocks();renderPricing();renderUsers();}
 
-function applyRoleRestrictions() {
+function applyRoleRestrictions(){
   const r=currentUser.role;
   const pricingTab=document.querySelectorAll('.tab')[2];
-  if(r==='marketing')pricingTab.style.display='none';
+  if(r==='marketing'||r==='brand_poc')pricingTab.style.display='none';
   else pricingTab.style.display='';
+  const locksTab=document.querySelectorAll('.tab')[1];
+  if(locksTab)locksTab.textContent=r==='brand_poc'?'My bookings':'Active locks';
+  if(r==='marketing')document.querySelectorAll('.add-btn').forEach(b=>{if(b.textContent.includes('Lock'))b.style.display='none';});
 }
 
-function switchTab(t) {
+function switchTab(t){
   const allTabs=['calendar','locks','pricing','users'];
   document.querySelectorAll('.tab').forEach((el,i)=>el.classList.toggle('active',allTabs[i]===t));
   allTabs.forEach(s=>{const el=document.getElementById('sec-'+s);if(el)el.classList.toggle('active',s===t);});
   if(t==='users')renderUsers();
 }
-
 function changeMonth(d){curM+=d;if(curM>11){curM=0;curY++;}if(curM<0){curM=11;curY--;}renderCal();}
 
-// ── INIT ──────────────────────────────────────────────────────────────────────
 document.getElementById('today-date').textContent=new Date().toLocaleDateString('en-GB',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
 window.addEventListener('load',()=>{
   const src=document.getElementById('naheed-logo')?document.getElementById('naheed-logo').src:'';
-  const ll=document.getElementById('login-logo');
-  if(ll&&src)ll.src=src;
+  const ll=document.getElementById('login-logo');if(ll&&src)ll.src=src;
 });
-document.getElementById('login-user').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
-document.getElementById('login-pass').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
+document.addEventListener('keydown',e=>{if(e.key==='Enter'&&document.getElementById('login-screen').style.display!=='none')doLogin();});
+
 </script>
-</div></body>
+</div>
+<!-- Approval Modal -->
+<div class="modal-overlay" id="approval-overlay">
+<div class="modal">
+  <h3>Approve reservation</h3>
+  <div style="background:#f9f9f9;border-radius:8px;padding:12px;margin-bottom:12px;font-size:13px">
+    <div style="font-weight:600;color:#1a1a1a;margin-bottom:4px" id="approval-asset"></div>
+    <div style="color:#888;font-size:12px" id="approval-brand"></div>
+  </div>
+  <div class="inv-preview">
+    <div class="inv-row"><span>Subtotal</span><span id="approval-subtotal">&#x2014;</span></div>
+    <div class="inv-row" style="margin-top:6px"><span>Discount (PKR)</span><input type="number" id="approval-disc" min="0" value="0" oninput="calcApprovalTotal()"/></div>
+    <div class="inv-row"><span>Tax % (optional)</span><input type="number" id="approval-tax" min="0" max="100" placeholder="0" oninput="calcApprovalTotal()"/></div>
+    <div class="inv-total-row"><span>Invoice total (PKR)</span><span id="approval-total">&#x2014;</span></div>
+  </div>
+  <div class="modal-actions">
+    <button class="btn-cancel-modal" onclick="closeApproval()">Cancel</button>
+    <button class="btn-confirm" style="background:#1a7a3c" onclick="confirmApproval()">Approve &amp; raise invoice</button>
+  </div>
+</div>
+</div>
+<!-- Reject Modal -->
+<div class="modal-overlay" id="reject-overlay">
+<div class="modal" style="max-width:380px">
+  <h3>Reject reservation</h3>
+  <p id="reject-msg" style="font-size:13px;color:#666;margin-bottom:12px;line-height:1.5"></p>
+  <div class="frow"><label>Reason (optional)</label><input type="text" id="reject-reason" placeholder="e.g. Dates not available for your category"/></div>
+  <div class="modal-actions">
+    <button class="btn-cancel-modal" onclick="closeReject()">Cancel</button>
+    <button class="btn-confirm" style="background:#cc0000" onclick="confirmReject()">Confirm rejection</button>
+  </div>
+</div>
+</div>
+</body>
 </html>
